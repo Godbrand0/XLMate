@@ -24,5 +24,7 @@ service = { path = "../service" }
 error = { path = "../error" }
 security = { path = "../security" }
 actix-cors = "0.7.0"
-utoipa-redoc = { version = "3", features = ["actix-web"] }
+utoipa-redoc = { version = "5", features = ["actix-web"] }
 entity = { path = "../db/entity", package = "db_entity" }
+actix-governor = "0.5"
+

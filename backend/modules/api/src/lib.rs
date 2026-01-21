@@ -6,3 +6,4 @@ pub mod ai;
 pub mod openapi;
 pub mod ws;
 mod test;
+pub mod config;

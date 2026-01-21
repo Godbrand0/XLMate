@@ -7,15 +7,19 @@ use error::error::custom_json_error;
 use utoipa_swagger_ui::SwaggerUi;
 use utoipa_redoc::Redoc;
 use std::env;
-use security::JwtAuthMiddleware;
+use security::jwt::JwtAuthMiddleware;
+use utoipa::OpenApi;
+use utoipa_redoc::Servable;
+use actix::Actor;
 use crate::players::{add_player, delete_player, find_player_by_id, update_player};
 use crate::games::{create_game, get_game, make_move, list_games, join_game, abandon_game};
 use crate::auth::{login, register, refresh_token, logout};
 use crate::ai::{get_ai_suggestion, analyze_position};
 use crate::ws::{LobbyState, ws_route};
+use crate::config::AppConfig;
+use actix_governor::{Governor, GovernorConfigBuilder};
 
-mod openapi;
-use openapi::ApiDoc;
+use crate::openapi::ApiDoc;
 
 /// Simple health-check endpoint
 async fn health() -> impl Responder {
@@ -52,7 +56,11 @@ pub async fn main() -> std::io::Result<()> {
     // Create a shared LobbyState actor
     let lobby = LobbyState::new().start();
 
-    HttpServer::new(move || {
+    // Load AppConfig
+    let config = AppConfig::from_env();
+
+    // Define the app factory closure
+    let app_factory = move || {
         // Configure CORS middleware with environment variables for flexibility
         let cors = {
             let mut cors = Cors::default()
@@ -67,11 +75,10 @@ pub async fn main() -> std::io::Result<()> {
                 for origin in origins {
                     cors = cors.allowed_origin(origin.trim());
                 }
-                println!("CORS configured with specific origins: {}", allowed_origins);
+                // We don't print here to avoid spamming logs on every worker start
             } else {
                 // In development, allow all origins by default
                 cors = cors.allow_any_origin();
-                println!("CORS configured to allow any origin (development mode)");
             }
             
             cors
@@ -79,6 +86,22 @@ pub async fn main() -> std::io::Result<()> {
         
         // Clone the JWT secret for use in middleware
         let jwt_secret = jwt_secret.clone();
+        
+        // Configure Governor for Auth (Strict)
+        let auth_governor_conf = GovernorConfigBuilder::default()
+            .per_second(config.auth_rate_limit_per_sec)
+            .burst_size(config.auth_rate_limit_burst)
+            .use_headers()
+            .finish()
+            .unwrap();
+
+        // Configure Governor for Games/General (Loose)
+        let game_governor_conf = GovernorConfigBuilder::default()
+            .per_second(config.game_rate_limit_per_sec)
+            .burst_size(config.game_rate_limit_burst)
+            .use_headers()
+            .finish()
+            .unwrap();
 
         App::new()
             // Add CORS middleware first
@@ -102,16 +125,18 @@ pub async fn main() -> std::io::Result<()> {
             // Game routes
             .service(
                 web::scope("/v1/games")
+                    .wrap(Governor::new(&game_governor_conf))
                     .service(create_game)
                     .service(get_game)
                     .service(list_games)
                     .service(join_game)
-                    .route("/{id}/move", web::put().to(make_move))
+                    .service(make_move)
                     .service(abandon_game),
             )
             // Auth routes
             .service(
                 web::scope("/v1/auth")
+                    .wrap(Governor::new(&auth_governor_conf))
                     .service(login)
                     .service(register)
                     .service(refresh_token)
@@ -136,17 +161,24 @@ pub async fn main() -> std::io::Result<()> {
             )
             // ReDoc integration (alternative documentation UI)
             .service(
-                Redoc::new("/api/redoc")
-                    .url("/api/docs/openapi.json", openapi.clone())
+                Redoc::with_url("/api/redoc", openapi.clone())
             )
             // WebSocket documentation as static HTML
             .route("/api/docs/websocket", web::get().to(|| async {
                 HttpResponse::Ok()
                     .content_type("text/markdown")
-                    .body(openapi::websocket_documentation())
+                    .body(crate::openapi::websocket_documentation())
             }))
-    })
-    .bind(&server_addr)?
-    .run()
-    .await
+    };
+
+    let mut server = HttpServer::new(app_factory).bind(&server_addr)?;
+
+    if let Ok(workers_str) = env::var("WORKERS") {
+        if let Ok(workers) = workers_str.parse::<usize>() {
+            println!("Setting worker count to {}", workers);
+            server = server.workers(workers);
+        }
+    }
+
+    server.run().await
 }
