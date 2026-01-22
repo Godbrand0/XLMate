@@ -4,6 +4,30 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "result_side")]
+pub enum ResultSide {
+    #[sea_orm(string_value = "white")]
+    White,
+    #[sea_orm(string_value = "black")]
+    Black,
+    #[sea_orm(string_value = "draw")]
+    Draw,
+    #[sea_orm(string_value = "none")]
+    None,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "game_variant")]
+pub enum GameVariant {
+    #[sea_orm(string_value = "standard")]
+    Standard,
+    #[sea_orm(string_value = "chess960")]
+    Chess960,
+    #[sea_orm(string_value = "three-check")]
+    ThreeCheck,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, DeriveEntityModel)]
 #[sea_orm(table_name = "game", schema_name = "smdb")]
 pub struct Model {
