@@ -11,6 +11,7 @@ import { MoonIcon, SunIcon } from 'lucide-react'
 
 export function Header() {
     const { theme, setTheme } = useTheme()
+    const [collapsed, setCollapsed] = React.useState(false)
 
     return (
         <header className="h-16 border-b border-border bg-card/80 backdrop-blur-sm fixed top-0 left-0 right-0 z-50">
@@ -23,7 +24,7 @@ export function Header() {
                             </Button>
                         </SheetTrigger>
                         <SheetContent side="left" className="p-0 w-64">
-                            <GameSidebar collapsed={false} setCollapsed={() => {}} isMobileView={true} />
+                            <GameSidebar collapsed={collapsed} setCollapsed={setCollapsed} />
                         </SheetContent>
                     </Sheet>
 
