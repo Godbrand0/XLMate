@@ -1,6 +1,7 @@
 use sea_orm::{*, ActiveValue::Set, EntityTrait, QueryFilter, QuerySelect, sea_query::Expr};
 use db_entity::prelude::{Game, Player};
 use db_entity::{game, player};
+use db_entity::game::{ResultSide, GameVariant}; // Added imports
 use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 use std::env;
@@ -12,7 +13,7 @@ use dotenv::dotenv;
 
 // Configuration
 const NUM_PLAYERS_TO_CREATE: usize = 100;
-const NUM_GAMES_TO_INSERT: usize = 10_000;
+const NUM_GAMES_TO_INSERT: usize = 1_000_000;
 const BATCH_SIZE: usize = 100; // Insert games in batches
 
 // Helper to connect to the database
@@ -105,8 +106,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === Benchmark: Insertions ===
     println!("Inserting {} games in batches of {}...", NUM_GAMES_TO_INSERT, BATCH_SIZE);
     let mut game_models = Vec::with_capacity(BATCH_SIZE);
-    let variants = ["standard", "chess960", "crazyhouse", "kingofthehill"];
-    let results = ["white", "black", "draw"];
+    let variants = [GameVariant::Standard, GameVariant::Chess960, GameVariant::Blitz, GameVariant::Rapid, GameVariant::Classical]; // Update variants list
+    let results = [ResultSide::WhiteWins, ResultSide::BlackWins, ResultSide::Draw]; // Update results list
     let insert_start = Instant::now();
 
     for i in 0..NUM_GAMES_TO_INSERT {
@@ -120,19 +121,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             black_player: Set(black_player_id),
             fen: Set(generate_random_fen(&mut rng)),
             pgn: Set(generate_random_pgn(&mut rng)),
-            result: Set(match rng.gen_range(0..3) {
-                0 => game::ResultSide::WhiteWins,
-                1 => game::ResultSide::BlackWins,
-                _ => game::ResultSide::Draw,
-            }),
-            variant: Set(match rng.gen_range(0..6) {
-                0 => game::GameVariant::Standard,
-                1 => game::GameVariant::Chess960,
-                2 => game::GameVariant::ThreeCheck,
-                3 => game::GameVariant::Blitz,
-                4 => game::GameVariant::Rapid,
-                _ => game::GameVariant::Classical,
-            }),
+
+            result: Set(Some(results[rng.gen_range(0..results.len())].clone())),
+            variant: Set(variants[rng.gen_range(0..variants.len())].clone()),
             duration_sec: Set(rng.gen_range(30..600)),
             ..Default::default() // started_at has default
         });
@@ -160,16 +151,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nBenchmarking queries...");
 
     // 1. Query by Variant
-    let query_variant = variants[rng.gen_range(0..variants.len())];
+    let query_variant = variants[rng.gen_range(0..variants.len())].clone();
     let query_start = Instant::now();
     let games_by_variant = Game::find()
-        .filter(game::Column::Variant.eq(game::GameVariant::Standard))
+        .filter(game::Column::Variant.eq(query_variant.clone()))
         .limit(1000) // Limit results for benchmark
         .all(&db)
         .await?;
     let query_duration = query_start.elapsed();
     println!(
-        "- Query by variant ('{}'): Found {} games in {:.2?}",
+        "- Query by variant ('{:?}'): Found {} games in {:.2?}",
         query_variant,
         games_by_variant.len(),
         query_duration

@@ -63,7 +63,7 @@ impl Modify for SecurityAddon {
             dto::games::JoinGameRequest,
             dto::games::GameStatus,
             dto::games::GameResult,
-            games::ListGamesQuery,
+            dto::games::ListGamesQuery,
             
             // Auth schemas
             dto::auth::LoginRequest,

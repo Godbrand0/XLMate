@@ -3,7 +3,7 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
 use dotenv::dotenv;
-use sea_orm::Database;
+use sea_orm::{Database, DatabaseConnection};
 use std::env;
 use security::JwtService;
 use utoipa::OpenApi;
@@ -70,6 +70,7 @@ pub async fn main() -> std::io::Result<()> {
 
     // Initialize JWT service
     let jwt_service = JwtService::new(jwt_secret.clone(), jwt_expiration);
+    let db = std::sync::Arc::new(db); // Wrap db in Arc
 
     // Create a shared LobbyState actor
     let lobby = LobbyState::new().start();
@@ -128,7 +129,7 @@ pub async fn main() -> std::io::Result<()> {
             // Global middleware
             .wrap(cors)
             // App data
-            .app_data(web::Data::new(db.clone()))
+            .app_data(web::Data::from(db.clone()))
             .app_data(web::Data::new(jwt_service.clone()))
             .app_data(web::Data::new(lobby.clone()))
             // WebSocket route mounting

@@ -1,5 +1,6 @@
 use db_entity::prelude::*;
 use db_entity::{player, game};
+use db_entity::game::{ResultSide, GameVariant}; // Added imports
 use sea_orm::{*, prelude::*};
 use std::env;
 use dotenv::dotenv;
@@ -46,6 +47,7 @@ async fn main() -> Result<(), DbErr> {
             fide_rating: Set(Some(rand::thread_rng().gen_range(800..2800))),
             social_links: Set(Some(vec!["http://twitter.com/player".to_string()])),
             is_enabled: Set(true),
+            ..Default::default()
         }
     }).collect();
 
@@ -57,8 +59,23 @@ async fn main() -> Result<(), DbErr> {
 
     // --- Seed Games ---
     let mut rng = rand::thread_rng();
-    let variants = vec!["Standard", "Chess960", "Atomic", "Crazyhouse"];
-    let results = vec!["white", "black", "draw"];
+    
+    // We will generate random variants/results inside the loop or define vectors with new Enum variants
+    // But main's loop uses match blocks. We can stick to match blocks or arrays. 
+    // Arrays are cleaner.
+    let variants = vec![
+        GameVariant::Standard, 
+        GameVariant::Chess960, 
+        GameVariant::ThreeCheck, 
+        GameVariant::Blitz, 
+        GameVariant::Rapid, 
+        GameVariant::Classical
+    ];
+    let results = vec![
+        ResultSide::WhiteWins, 
+        ResultSide::BlackWins, 
+        ResultSide::Draw
+    ];
 
     println!("Seeding {} games...", NUM_GAMES);
     for i in 0..NUM_GAMES {
@@ -79,19 +96,8 @@ async fn main() -> Result<(), DbErr> {
             black_player: Set(black_player_id),
             fen: Set(STARTING_FEN.to_string()), // Simple FEN for now
             pgn: Set(json!({ "moves": "e4 c5 ...", "final_ply": rng.gen_range(10..150) })), // Added final_ply for benchmark
-            result: Set(match rng.gen_range(0..3) {
-                0 => game::ResultSide::WhiteWins,
-                1 => game::ResultSide::BlackWins,
-                _ => game::ResultSide::Draw,
-            }),
-            variant: Set(match rng.gen_range(0..6) {
-                0 => game::GameVariant::Standard,
-                1 => game::GameVariant::Chess960,
-                2 => game::GameVariant::ThreeCheck,
-                3 => game::GameVariant::Blitz,
-                4 => game::GameVariant::Rapid,
-                _ => game::GameVariant::Classical,
-            }),
+            result: Set(Some(results.choose(&mut rng).unwrap().clone())),
+            variant: Set(variants.choose(&mut rng).unwrap().clone()),
             started_at: Set(started_at.into()),
             duration_sec: Set(duration_sec),
             created_at: Set(Utc::now().into()),

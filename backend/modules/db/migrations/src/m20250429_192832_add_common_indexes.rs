@@ -1,5 +1,6 @@
 use sea_orm_migration::{prelude::*, MigrationTrait};
 
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -26,16 +27,10 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        // Create GIN index using raw SQL as IndexType::Gin is not available/standard in all sea-orm versions or requires specific features
         manager
-            .create_index(
-                Index::create()
-                    .if_not_exists()
-                    .name("idx_game_pgn")
-                    .table(Game::Table)
-                    .col(Game::Pgn)
-                    .index_type(IndexType::Custom(SeaRc::new(Alias::new("GIN"))))
-                    .to_owned(),
-            )
+            .get_connection()
+            .execute_unprepared(r#"CREATE INDEX IF NOT EXISTS "idx_game_pgn" ON "smdb"."game" USING GIN ("pgn")"#)
             .await?;
         manager
             .create_index(
@@ -102,6 +97,7 @@ enum Game {
     BlackPlayer,
     StartedAt,
     Pgn,
+    // Add other columns if needed for future migrations involving this table
 }
 
 #[derive(Iden)]
