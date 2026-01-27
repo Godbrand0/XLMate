@@ -10,8 +10,10 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Ensure the schema exists
+        // Ensure the schema exists
         manager
-            .create_schema(Schema::new("smdb").if_not_exists())
+            .get_connection()
+            .execute_unprepared("CREATE SCHEMA IF NOT EXISTS \"smdb\"")
             .await?;
 
         // Create the game table within the smdb schema

@@ -6,7 +6,7 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
 use dotenv::dotenv;
-use sea_orm::Database;
+use sea_orm::{Database, DatabaseConnection};
 use std::env;
 
 use security::{JwtService};
@@ -62,6 +62,7 @@ pub async fn main() -> std::io::Result<()> {
 
     // Initialize JWT service
     let jwt_service = JwtService::new(jwt_secret.clone(), jwt_expiration);
+    let db = std::sync::Arc::new(db); // Wrap db in Arc
 
     eprintln!("Starting HTTP server on {}", server_addr);
 
@@ -96,7 +97,7 @@ pub async fn main() -> std::io::Result<()> {
             // Global middleware
             .wrap(cors)
             // App data
-            .app_data(web::Data::new(db.clone()))
+            .app_data(web::Data::from(db.clone()))
             .app_data(web::Data::new(jwt_service.clone()))
             // Health check
             .route("/health", web::get().to(health))

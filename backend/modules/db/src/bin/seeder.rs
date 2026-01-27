@@ -1,5 +1,6 @@
 use db_entity::prelude::*;
 use db_entity::{player, game};
+use db_entity::game::{ResultSide, GameVariant}; // Added imports
 use sea_orm::{*, prelude::*};
 use std::env;
 use dotenv::dotenv;
@@ -42,9 +43,10 @@ async fn main() -> Result<(), DbErr> {
             country: Set("USA".to_string()),
             flair: Set("GM".to_string()),
             real_name: Set(format!("Real Name {}", i + 1)),
-            location: Set("New York, NY".to_string()),
-            fide_rating: Set(rand::thread_rng().gen_range(800..2800)),
-            social_links: Set(vec!["http://twitter.com/player".to_string()]),
+            location: Set(Some("New York, NY".to_string())),
+            fide_rating: Set(Some(rand::thread_rng().gen_range(800..2800))),
+            social_links: Set(Some(vec!["http://twitter.com/player".to_string()])),
+            ..Default::default()
         }
     }).collect();
 
@@ -56,8 +58,8 @@ async fn main() -> Result<(), DbErr> {
 
     // --- Seed Games ---
     let mut rng = rand::thread_rng();
-    let variants = vec!["Standard", "Chess960", "Atomic", "Crazyhouse"];
-    let results = vec!["white", "black", "draw"];
+    let variants = vec![GameVariant::Standard, GameVariant::Chess960, GameVariant::Blitz, GameVariant::Rapid];
+    let results = vec![ResultSide::White, ResultSide::Black, ResultSide::Draw];
 
     println!("Seeding {} games...", NUM_GAMES);
     for i in 0..NUM_GAMES {
@@ -78,10 +80,11 @@ async fn main() -> Result<(), DbErr> {
             black_player: Set(black_player_id),
             fen: Set(STARTING_FEN.to_string()), // Simple FEN for now
             pgn: Set(json!({ "moves": "e4 c5 ...", "final_ply": rng.gen_range(10..150) })), // Added final_ply for benchmark
-            result: Set(results.choose(&mut rng).unwrap().to_string()),
-            variant: Set(variants.choose(&mut rng).unwrap().to_string()),
+            result: Set(Some(results.choose(&mut rng).unwrap().clone())),
+            variant: Set(variants.choose(&mut rng).unwrap().clone()),
             started_at: Set(started_at.into()),
             duration_sec: Set(duration_sec),
+            ..Default::default()
         };
 
         Game::insert(game).exec(&db).await?;
