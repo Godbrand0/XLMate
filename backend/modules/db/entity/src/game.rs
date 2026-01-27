@@ -41,7 +41,7 @@ pub struct Model {
     pub fen: String,
     #[sea_orm(column_type = "JsonBinary")]
     pub pgn: Json,
-    pub result: ResultSide,
+    pub result: Option<ResultSide>,
     pub variant: GameVariant,
     pub started_at: DateTimeWithTimeZone,
     pub duration_sec: i32,
